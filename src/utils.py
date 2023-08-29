@@ -1,5 +1,7 @@
 import tensorflow as tf
 from transformers import AdamWeightDecay, WarmUp
+import numpy as np
+from bert_model.bert import BERT_QA
 from schedule import WarmupLinearSchedule
 from metrics import F1_Score
 import sys
@@ -38,12 +40,19 @@ def train(model,
           val_dataset=None,
           save_per_epochs=2,
           fix_epochs=10,
-          save_model_paths="../save/bert-qa"):
+          weight_paths="../save/weights/bert-qa"
+          ):
     steps_per_epoch = train_dataset.cardinality()
     total_steps = max_epochs * steps_per_epoch
     optimizer = create_optimizer(init_lr=1e-3, num_train_steps=total_steps, num_warmup_steps=2000)
     f1_fn = F1_Score()
     accuracy_fn = tf.keras.metrics.Accuracy()
+    history = {"epochs": max_epochs, "loss": [], "f1_score": [], "accuracy": []}
+
+    if val_dataset is not None:
+        history["val_loss"] = []
+        history["val_f1_score"] = []
+        history["val_accuracy"] = []
 
     tf.print("#*#*#*# Training #*#*#*#", output_stream=sys.stdout)
 
@@ -54,7 +63,7 @@ def train(model,
         ground_truths = []
         predictions = []
         total_loss, logging_loss = 0.0, 0.0
-        tf.print(f"    #Epoch: {ep + 1}/{max_epochs}:", output_stream=sys.stdout)
+        tf.print(f"#Epoch: {ep + 1}/{max_epochs}:", output_stream=sys.stdout)
         for step, (input_ids, attention_masks, labels) in enumerate(train_dataset):
 
             loss_value, predicts = __train_step(model, optimizer, ((input_ids, attention_masks), labels))
@@ -76,24 +85,44 @@ def train(model,
         predictions = tf.squeeze(tf.concat(predictions, axis=0))
         f1_score = f1_fn(ground_truths, predictions)
         accuracy = accuracy_fn(ground_truths, predictions)
+        mean_loss = total_loss / tf.cast(steps_per_epoch, dtype=tf.float32)
+
+        history["loss"].append(mean_loss)
+        history["f1_score"].append(f1_score)
+        history["accuracy"].append(accuracy)
 
         tf.print("    Epoch summary:", output_stream=sys.stdout)
-        tf.print(f"      -> Mean training loss: {total_loss / tf.cast(steps_per_epoch, dtype=tf.float32)}",
+        tf.print(f"      -> Mean training loss: {mean_loss}",
                  output_stream=sys.stdout)
         tf.print(f"      -> F1: {f1_score}", output_stream=sys.stdout)
         tf.print(f"      -> Acc: {accuracy}", output_stream=sys.stdout)
 
         if (ep + 1) % save_per_epochs == 0:
-            tf.print(f"--- Saving model to \"{save_model_paths}\" ---", output_stream=sys.stdout)
-            model.save(save_model_paths)
+            tf.print(f"--- Saving model to \"{weight_paths}\" ---", output_stream=sys.stdout)
+            model.save_weights(weight_paths, save_format="tf")
 
         if val_dataset is not None:
             output_validation = evaluate(val_dataset, model)
+
+            history["val_loss"].append(output_validation['loss'])
+            history["val_f1_score"].append(output_validation['f1'])
+            history["val_accuracy"].append(output_validation['accuracy'])
+
             tf.print("    Evaluation result:", output_stream=sys.stdout)
             tf.print(f"      -> Loss: {output_validation['loss']}", output_stream=sys.stdout)
             tf.print(f"      -> F1: {output_validation['f1']}", output_stream=sys.stdout)
             tf.print(f"      -> Acc: {output_validation['accuracy']}", output_stream=sys.stdout)
 
+    history["loss"] = np.array(list(map(lambda x: x.numpy(), history["loss"])))
+    history["f1_score"] = np.array(list(map(lambda x: x.numpy(), history["f1_score"])))
+    history["accuracy"] = np.array(list(map(lambda x: x.numpy(), history["accuracy"])))
+
+    if val_dataset is not None:
+        history["val_loss"] = np.array(list(map(lambda x: x.numpy(), history["val_loss"])))
+        history["val_f1_score"] = np.array(list(map(lambda x: x.numpy(), history["val_f1_score"])))
+        history["val_accuracy"] = np.array(list(map(lambda x: x.numpy(), history["val_accuracy"])))
+
+    return history
 
 
 @tf.function
@@ -132,3 +161,11 @@ def evaluate(eval_dataset, model):
     }
 
     return output_validation
+
+
+def load_pretrained_bert_qa(weight_path):
+    with open("../save/configs/bert-qa.json", "r") as f:
+        config = f.read()
+        model = tf.keras.models.model_from_json(config, custom_objects={"BERT_QA": BERT_QA})
+    model.load_weights(weight_path)
+    return model
