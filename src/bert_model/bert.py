@@ -1,21 +1,25 @@
 import tensorflow as tf
 from tensorflow import keras
-from bert_utils import load_pretrained_bert, make_classifier
+from bert_model.bert_utils import load_pretrained_bert, make_classifier
 
 
 class BERT_QA(keras.Model):
-    def __init__(self, num_classes, use_pooler=False, dropout_rate=0.1, hidden_units=768, class_weights=None):
+    def __init__(self, num_classes, use_pooler=False, dropout_rate=0.1, hidden_units=768,
+                 class_weights=None):
         super(BERT_QA, self).__init__()
         self.num_classes = num_classes
 
         self.bert = load_pretrained_bert()
+        self.bert.trainable = False
         self.use_pooler = use_pooler
         self.classifier = make_classifier(num_classes, use_pooler, dropout_rate, hidden_units=hidden_units)
 
         self.class_weights = class_weights
-        self.loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
+        self.loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
 
-    # just need feed input ids and attention mask not need head mask or end position ...
+    def set_trainable(self, trainable):
+        self.bert.trainable = trainable
+
     def __compute(self, input_ids, attention_mask, training):
         features = self.bert(input_ids, attention_mask=attention_mask)
 
@@ -38,14 +42,13 @@ class BERT_QA(keras.Model):
         logits = self.__compute(input_ids, attention_mask, training)
         return logits
 
-    def train_loss(self, inputs, labels, training):
+    def calculate_loss(self, inputs, labels, training):
         y_trues = labels
-        input_ids, attention_mask = inputs
-        logits = self.__compute(input_ids, attention_mask, training)
+        logits = self(inputs, training=training)
 
         # class_weights = tf.convert_to_tensor(self.weight_class)
         loss = self.loss_fn(y_trues, logits, sample_weight=self.class_weights)
 
-        predicts = tf.math.reduce_max(logits, axis=1)[1]
+        predicts = tf.math.argmax(logits, axis=1)
 
         return loss, predicts

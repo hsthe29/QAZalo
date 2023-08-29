@@ -77,25 +77,25 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length, max_query_
     features = []
     for (example_index, example) in enumerate(examples):
         max_doc_length = max_seq_length - len(example.question_tokens) - 3
-        query_tokens = example.question_tokens
-        if len(query_tokens) > max_query_length:
-            query_tokens = query_tokens[:max_query_length]
+        query_ids = tokenizer.encode(example.question_tokens)
+        if len(query_ids) > max_query_length:
+            query_ids = query_ids[:max_query_length]
 
-        doc_tokens = example.doc_tokens
-        if len(doc_tokens) > max_doc_length:
-            doc_tokens = doc_tokens[max_doc_length]
+        doc_ids = tokenizer.encode(example.doc_tokens)
+        if len(doc_ids) > max_doc_length:
+            doc_ids = doc_ids[:max_doc_length]
 
-        input_str = ' '.join(query_tokens + ['</s>'] + doc_tokens)
-        input_ids = tokenizer.encode(input_str)
+        input_ids = query_ids + doc_ids[1:]
 
         # The mask has 1 for real tokens and 0 for padding tokens. Only real
         # tokens are attended to.
         input_mask = [1] * len(input_ids)
+        l = len(input_ids)
 
         # Zero-pad up to the sequence length.
-        if len(input_ids) < max_seq_length:
-            input_ids.extend([0] * (max_seq_length - len(input_ids)))
-            input_mask.extend([0] * (max_seq_length - len(input_ids)))
+        if l < max_seq_length:
+            input_ids.extend([0] * (max_seq_length - l))
+            input_mask.extend([0] * (max_seq_length - l))
 
         assert len(input_ids) == max_seq_length
         assert len(input_mask) == max_seq_length
@@ -107,7 +107,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length, max_query_
 
 def make_dataset(path_input_data,
                  tokenizer,
-                 max_seq_length=500,
+                 max_seq_length=256,
                  max_query_length=64,
                  batch_size=16,
                  is_training=True):

@@ -1,3 +1,4 @@
+import tensorflow as tf
 from keras import backend as K
 from keras.layers import Layer
 from operator import truediv
@@ -23,12 +24,11 @@ class BaseLayer(Layer):
         if name and not hasattr(self, name):
             setattr(self, name, K.variable(0, dtype="int32"))
 
-    def cast(self, y_true, y_pred, dtype="int32"):
+    def cast(self, y_true, y_pred, dtype=tf.int32):
         """Convert the specified true and predicted output to the specified
         destination type (int32 by default).
         """
-        return self.cast_strategy(
-            y_true, y_pred, dtype=dtype, label=self.label)
+        return (tf.cast(y_true, dtype=dtype), tf.cast(y_pred, dtype=dtype))
 
     def __getattribute__(self, name):
         if name == "get_config":
@@ -60,7 +60,7 @@ class TruePositive(BaseLayer):
         current_tp = self.tp * 1
 
         tp_update = K.update_add(self.tp, tp)
-        self.add_update(tp_update, inputs=[y_true, y_pred])
+        self.add_update(tp_update)
 
         return tp + current_tp
 
@@ -122,7 +122,7 @@ class FalseNegative(BaseLayer):
         current_fn = self.fn * 1
 
         fn_update = K.update_add(self.fn, fn)
-        self.add_update(fn_update, inputs=[y_true, y_pred])
+        self.add_update(fn_update)
 
         return fn + current_fn
 
@@ -152,7 +152,7 @@ class FalsePositive(BaseLayer):
         current_fp = self.fp * 1
 
         fp_update = K.update_add(self.fp, fp)
-        self.add_update(fp_update, inputs=[y_true, y_pred])
+        self.add_update(fp_update)
 
         return fp + current_fp
 

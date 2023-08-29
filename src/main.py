@@ -1,10 +1,11 @@
-from bert_model.bert import BERT_QA
-from typing import NamedTuple
+import tensorflow as tf
+import sys
 
-class Config(NamedTuple):
-    num_labels: int
-    use_pooler: bool
+f = tf.constant([[1, 5],
+                 [4, 3],
+                 [3, 2]])
 
-if __name__ == "__main__":
+tf.print(f)
 
-    model = BERT_QA()
+tensor = tf.range(10)
+tf.print(tensor, output_stream=sys.stdout)

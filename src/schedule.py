@@ -9,12 +9,13 @@ class WarmupLinearSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, lr, warmup_steps, total_steps, min_lr=0.3):
         super(WarmupLinearSchedule, self).__init__()
         self.lr = lr
-        self.warmup_steps = float(warmup_steps)
-        self.cooldown_steps = float(total_steps - warmup_steps)
-        self.total_steps = total_steps
+        self.warmup_steps = tf.cast(warmup_steps, dtype=tf.float32)
+        self.cooldown_steps = tf.cast(total_steps - warmup_steps, dtype=tf.float32)
+        self.total_steps = tf.cast(total_steps, dtype=tf.float32)
         self.min_lr = lr*min_lr
 
     def __call__(self, step):
-        if step < self.warmup_steps:
-            return max(self.min_lr/2, self.lr * float(step) / max(1.0, self.warmup_steps))
-        return max(self.min_lr, self.lr * float(self.total_steps - step) / max(1.0, self.cooldown_steps))
+        cond = step < self.warmup_steps
+        true_fn = lambda: tf.math.maximum(self.min_lr/2, self.lr * step / self.warmup_steps)
+        false_fn = lambda: tf.math.maximum(self.min_lr, self.lr * (self.total_steps - step) / self.cooldown_steps)
+        return tf.cond(cond, true_fn, false_fn)  # Use tf.cond() explicitly.
