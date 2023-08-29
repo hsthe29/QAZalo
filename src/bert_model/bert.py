@@ -4,7 +4,7 @@ from bert_utils import load_pretrained_bert, make_classifier
 
 
 class BERT_QA(keras.Model):
-    def __init__(self, num_classes, use_pooler=False, dropout_rate=0.1, hidden_units=768):
+    def __init__(self, num_classes, use_pooler=False, dropout_rate=0.1, hidden_units=768, class_weights=None):
         super(BERT_QA, self).__init__()
         self.num_classes = num_classes
 
@@ -12,7 +12,8 @@ class BERT_QA(keras.Model):
         self.use_pooler = use_pooler
         self.classifier = make_classifier(num_classes, use_pooler, dropout_rate, hidden_units=hidden_units)
 
-        # self.weight_class = config.weight_class
+        self.class_weights = class_weights
+        self.loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
 
     # just need feed input ids and attention mask not need head mask or end position ...
     def __compute(self, input_ids, attention_mask, training):
@@ -37,16 +38,14 @@ class BERT_QA(keras.Model):
         logits = self.__compute(input_ids, attention_mask, training)
         return logits
 
-    def train_loss(self, inputs, label, training):
-        y_true = label
+    def train_loss(self, inputs, labels, training):
+        y_trues = labels
         input_ids, attention_mask = inputs
         logits = self.__compute(input_ids, attention_mask, training)
 
         # class_weights = tf.convert_to_tensor(self.weight_class)
-        loss = tf.losses.categorical_crossentropy(y_true, logits, from_logits=True)  # , weight=class_weights)
+        loss = self.loss_fn(y_trues, logits, sample_weight=self.class_weights)
 
-        predict_value = tf.math.reduce_max(logits, axis=1)[1]
-        list_predict = predict_value.numpy().tolist()
-        list_target = y_true.numpy().tolist()
+        predicts = tf.math.reduce_max(logits, axis=1)[1]
 
-        return loss, list_predict, list_target
+        return loss, predicts
