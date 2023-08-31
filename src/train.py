@@ -18,5 +18,5 @@ if __name__ == "__main__":
                                max_query_length=50,
                                batch_size=16)
 
-    history = train(model, 2, train_dataset, val_dataset=val_dataset, save_per_epochs=5)
+    history = train(model, 10, train_dataset, val_dataset=val_dataset, save_per_epochs=5, fix_epochs=4)
     print(history)

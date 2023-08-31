@@ -29,8 +29,9 @@ def __train_step(model, optimizer, inputs):
     x, y = inputs
     with tf.GradientTape() as tape:
         loss_value, predicts = model.calculate_loss(x, y, training=True)
-    grads = tape.gradient(loss_value, model.trainable_weights)
-    optimizer.apply_gradients(zip(grads, model.trainable_weights))
+    variables = model.trainable_variables
+    grads = tape.gradient(loss_value, variables)
+    optimizer.apply_gradients(zip(grads, variables))
     return loss_value, predicts
 
 
@@ -38,13 +39,14 @@ def train(model,
           max_epochs,
           train_dataset,
           val_dataset=None,
+          print_steps=5,
           save_per_epochs=2,
           fix_epochs=10,
           weight_paths="../save/weights/bert-qa"
           ):
     steps_per_epoch = train_dataset.cardinality()
-    total_steps = max_epochs * steps_per_epoch
-    optimizer = create_optimizer(init_lr=1e-3, num_train_steps=total_steps, num_warmup_steps=2000)
+    total_steps = (max_epochs + 2) * steps_per_epoch
+    optimizer = create_optimizer(init_lr=1e-3, num_train_steps=total_steps, num_warmup_steps=200)
     f1_fn = F1_Score()
     accuracy_fn = tf.keras.metrics.Accuracy()
     history = {"epochs": max_epochs, "loss": [], "f1_score": [], "accuracy": []}
@@ -64,15 +66,15 @@ def train(model,
         predictions = []
         total_loss, logging_loss = 0.0, 0.0
         tf.print(f"#Epoch: {ep + 1}/{max_epochs}:", output_stream=sys.stdout)
-        for step, (input_ids, attention_masks, labels) in enumerate(train_dataset):
+        for step, (*inputs, labels) in enumerate(train_dataset):
 
-            loss_value, predicts = __train_step(model, optimizer, ((input_ids, attention_masks), labels))
+            loss_value, predicts = __train_step(model, optimizer, (inputs, labels))
             ground_truths.append(labels)
             predictions.append(predicts)
             total_loss += loss_value
 
             # Log every 10 batches.
-            if step % 10 == 0:
+            if (step + 1) % print_steps == 0:
                 tf.print(f"    Batch training result at step {step + 1}/{steps_per_epoch}:", output_stream=sys.stdout)
 
                 f1_score = f1_fn(labels, predicts)
@@ -143,8 +145,8 @@ def evaluate(eval_dataset, model):
     f1_fn = F1_Score()
     accuracy_fn = tf.keras.metrics.Accuracy()
 
-    for step, (input_ids, attention_masks, labels) in enumerate(eval_dataset):
-        loss_value, predicts = __test_step(model, ((input_ids, attention_masks), labels))
+    for step, (*inputs, labels) in enumerate(eval_dataset):
+        loss_value, predicts = __test_step(model, (inputs, labels))
         ground_truths.append(labels)
         predictions.append(predicts)
         total_loss += loss_value

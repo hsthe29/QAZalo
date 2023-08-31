@@ -23,7 +23,7 @@ def make_classifier(num_classes, use_pooler, dropout_rate, hidden_units=768):
         return tf.keras.Sequential([
             tf.keras.Input(shape=(hidden_units*4,)),
             tf.keras.layers.Dropout(dropout_rate),
-            tf.keras.layers.Dense(hidden_units),
+            tf.keras.layers.Dense(hidden_units, activation="swish"),
             tf.keras.layers.Dropout(dropout_rate),
             tf.keras.layers.Dense(num_classes)
         ])

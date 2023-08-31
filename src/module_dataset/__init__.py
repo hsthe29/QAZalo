@@ -76,31 +76,31 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length, max_query_
     """Loads a data file into a list of `InputBatch`s."""
     features = []
     for (example_index, example) in enumerate(examples):
-        max_doc_length = max_seq_length - len(example.question_tokens) - 3
+        max_doc_length = max_seq_length - max_query_length
         query_ids = tokenizer.encode(example.question_tokens)
         if len(query_ids) > max_query_length:
-            query_ids = query_ids[:max_query_length]
+            query_ids = query_ids[:max_query_length - 1] + [query_ids[-1]]
 
         doc_ids = tokenizer.encode(example.doc_tokens)
         if len(doc_ids) > max_doc_length:
-            doc_ids = doc_ids[:max_doc_length]
+            doc_ids = doc_ids[:max_doc_length - 1] + [doc_ids[-1]]
 
-        input_ids = query_ids + doc_ids[1:]
+        input_ids = query_ids + doc_ids
 
         # The mask has 1 for real tokens and 0 for padding tokens. Only real
         # tokens are attended to.
-        input_mask = [1] * len(input_ids)
+        attention_mask = [1] * len(input_ids)
         l = len(input_ids)
 
         # Zero-pad up to the sequence length.
         if l < max_seq_length:
             input_ids.extend([0] * (max_seq_length - l))
-            input_mask.extend([0] * (max_seq_length - l))
+            attention_mask.extend([0] * (max_seq_length - l))
 
         assert len(input_ids) == max_seq_length
-        assert len(input_mask) == max_seq_length
+        assert len(attention_mask) == max_seq_length
 
-        features.append((input_ids, input_mask, example.is_has_answer))
+        features.append((input_ids, attention_mask, example.is_has_answer))
 
     return features
 
@@ -126,7 +126,7 @@ def make_dataset(path_input_data,
     if is_training:
         all_label = []
         for _, tp in enumerate(features):
-            all_label.append(tp[2])
+            all_label.append(tp[-1])
 
         dataset = (tf.data.Dataset
                    .from_tensor_slices((all_input_ids, all_input_mask, all_label))
@@ -141,3 +141,29 @@ def make_dataset(path_input_data,
                    .prefetch(buffer_size=tf.data.AUTOTUNE))
 
     return dataset
+
+
+def eda_dataset(path_input_data,
+                tokenizer,
+                max_seq_length=256,
+                max_query_length=64):
+    examples = read_examples_from_file(path_input_data)
+
+    features = convert_examples_to_features(examples, tokenizer, max_seq_length, max_query_length)
+    buffer_size = len(features)
+
+    # Convert to Tensors and build dataset
+    all_input_ids = []
+    all_input_mask = []
+    for _, tp in enumerate(features):
+        all_input_ids.append(tp[0])
+        all_input_mask.append(tp[1])
+
+    all_label = []
+    for _, tp in enumerate(features):
+        all_label.append(tp[2])
+
+    all_len = len(all_label)
+    true_class = sum(all_label)
+    print("true: ", true_class)
+    print("false: ", all_len - true_class)

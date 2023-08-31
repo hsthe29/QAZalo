@@ -20,12 +20,13 @@ class BERT_QA(keras.Model):
     def set_trainable(self, trainable):
         self.bert.trainable = trainable
 
-    def __compute(self, input_ids, attention_mask, training):
-        features = self.bert(input_ids, attention_mask=attention_mask)
+    def call(self, inputs, training):
+        input_ids, attention_masks = inputs
+        features = self.bert(input_ids, attention_mask=attention_masks)
 
         if self.use_pooler:
             pooler_output = features['pooler_output']
-            output = self.classifier(pooler_output, training=training)
+            logits = self.classifier(pooler_output, training=training)
         else:
             all_hidden_states = features['hidden_states'][-4:]
             hidden_states = tf.stack(all_hidden_states, axis=1)
@@ -34,12 +35,7 @@ class BERT_QA(keras.Model):
             shape = tf.shape(hidden_states)
             cls_outputs = tf.reshape(hidden_states, [shape[0], shape[1] * shape[2]])
 
-            output = self.classifier(cls_outputs, training=training)
-        return output
-
-    def call(self, inputs, training):
-        input_ids, attention_mask = inputs
-        logits = self.__compute(input_ids, attention_mask, training)
+            logits = self.classifier(cls_outputs, training=training)
         return logits
 
     def calculate_loss(self, inputs, labels, training):
