@@ -46,7 +46,7 @@ def train(model,
           ):
     steps_per_epoch = train_dataset.cardinality()
     total_steps = (max_epochs + 2) * steps_per_epoch
-    optimizer = create_optimizer(init_lr=1e-3, num_train_steps=total_steps, num_warmup_steps=200)
+    optimizer = create_optimizer(init_lr=1e-3, num_train_steps=total_steps, num_warmup_steps=4000)
     f1_fn = F1_Score()
     accuracy_fn = tf.keras.metrics.Accuracy()
     history = {"epochs": max_epochs, "loss": [], "f1_score": [], "accuracy": []}
