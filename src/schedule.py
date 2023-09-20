@@ -1,21 +1,29 @@
+from abc import ABC
 import tensorflow as tf
 
 
-class WarmupLinearSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
-    """ Linear warmup and then linear decay.
-        Linearly increases learning rate from 0 to 1 over `warmup_steps` training steps.
-        Linearly decreases learning rate from 1. to 0. over remaining `t_total - warmup_steps` steps.
-    """
-    def __init__(self, lr, warmup_steps, total_steps, min_lr=0.3):
+class WarmupLinearSchedule(tf.keras.optimizers.schedules.LearningRateSchedule, ABC):
+    def __init__(self, init_lr, num_train_steps, num_warmup_steps):
         super(WarmupLinearSchedule, self).__init__()
-        self.lr = lr
-        self.warmup_steps = tf.cast(warmup_steps, dtype=tf.float32)
-        self.cooldown_steps = tf.cast(total_steps - warmup_steps, dtype=tf.float32)
-        self.total_steps = tf.cast(total_steps, dtype=tf.float32)
-        self.min_lr = lr*min_lr
+        self.init_lr = init_lr
+        self.lr_fn = tf.keras.optimizers.schedules.PolynomialDecay(
+            init_lr,
+            num_train_steps - num_warmup_steps,
+            0.0,
+            power=1)
+        self.num_train_steps = tf.cast(num_train_steps, dtype=tf.float32)
+        self.num_warmup_steps = tf.cast(num_warmup_steps, dtype=tf.float32)
 
     def __call__(self, step):
-        cond = step < self.warmup_steps
-        true_fn = lambda: tf.math.maximum(self.min_lr/2, self.lr * step / self.warmup_steps)
-        false_fn = lambda: tf.math.maximum(self.min_lr, self.lr * (self.total_steps - step) / self.cooldown_steps)
-        return tf.cond(cond, true_fn, false_fn)  # Use tf.cond() explicitly.
+        step = tf.cast(step, tf.float32)
+        is_warmup = tf.cast(step < self.num_warmup_steps, tf.float32)
+
+        decay_step = (1.0 - is_warmup) * (step - self.num_warmup_steps) + is_warmup * step
+
+        learning_rate = self.lr_fn(decay_step)
+
+        warmup_percent_done = step / self.num_warmup_steps
+        warmup_learning_rate = self.init_lr * warmup_percent_done
+        final_learning_rate = (
+                (1.0 - is_warmup) * learning_rate + is_warmup * warmup_learning_rate)
+        return final_learning_rate

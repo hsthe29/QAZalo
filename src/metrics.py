@@ -1,297 +1,49 @@
+from tensorflow import keras
 import tensorflow as tf
-from keras import backend as K
-from keras.layers import Layer
-from operator import truediv
 
 
-class BaseLayer(Layer):
+def create_metrics(from_logits=False):
+    threshold = 0.0 if from_logits else 0.5
+    return {
+        "accuracy": LogitsAccuracy(threshold=threshold),
+        "f1": LogitsF1(from_logits=from_logits),
+        "precision": keras.metrics.Precision(thresholds=threshold, name="precision"),
+        "recall": keras.metrics.Recall(thresholds=threshold, name="recall")
+    }
 
-    def __init__(self, name=None, label=0, cast_strategy=None, **kwargs):
-        super(BaseLayer, self).__init__(name=name, **kwargs)
 
-        self.stateful = True
-        self.label = label
-        self.cast_strategy = cast_strategy
-        self.epsilon = None
+class LogitsAccuracy(keras.metrics.Metric):
+    def __init__(self, threshold=0.5, name: str = "accuracy"):
+        super(LogitsAccuracy, self).__init__(name=name)
+        self.threshold = threshold
+        self.metric = keras.metrics.Accuracy()
 
-    def init_tensors(self, name=None):
-        """Method to delay initialization of tensors until the first time the
-        metric is called. Allows the class to be pickled and single-file models
-        to be shipped.
-        """
-        if self.epsilon is None:
-            self.epsilon = K.constant(K.epsilon(), dtype="float64")
-        if name and not hasattr(self, name):
-            setattr(self, name, K.variable(0, dtype="int32"))
+    def update_state(self, y_true, logits, sample_weight=None):
+        y_pred = tf.where(logits >= self.threshold, 1.0, 0.0)
+        y_pred = tf.cast(y_pred, dtype=y_true.dtype)
+        self.metric.update_state(y_true, y_pred, sample_weight)
 
-    def cast(self, y_true, y_pred, dtype=tf.int32):
-        """Convert the specified true and predicted output to the specified
-        destination type (int32 by default).
-        """
-        return (tf.cast(y_true, dtype=dtype), tf.cast(y_pred, dtype=dtype))
+    def result(self):
+        return self.metric.result()
 
-    def __getattribute__(self, name):
-        if name == "get_config":
-            raise AttributeError
-        return object.__getattribute__(self, name)
+    def reset_state(self):
+        self.metric.reset_state()
 
 
-class TruePositive(BaseLayer):
-    """Create a metric for model's true positives amount calculation.
+class LogitsF1(keras.metrics.Metric):
+    def __init__(self, from_logits=False, name: str = "f1"):
+        super(LogitsF1, self).__init__(name=name)
+        self.from_logits = from_logits
+        self.metric = keras.metrics.F1Score(average="micro", threshold=0.5)
 
-    A true positive is an outcome where the model correctly predicts the
-    positive class.
-    """
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        if self.from_logits:
+            y_pred = tf.nn.sigmoid(y_pred)
 
-    def __init__(self, name="true_positive", **kwargs):
-        super(TruePositive, self).__init__(name=name, **kwargs)
+        self.metric.update_state(y_true, y_pred, sample_weight)
 
-    def reset_states(self):
-        """Reset the state of the metric."""
-        K.set_value(self.tp, 0)
+    def result(self):
+        return self.metric.result()
 
-    def __call__(self, y_true, y_pred):
-        if self.epsilon is None:
-            self.init_tensors("tp")
-
-        y_true, y_pred = self.cast(y_true, y_pred)
-
-        tp = K.sum(y_true * y_pred)
-        current_tp = self.tp * 1
-
-        tp_update = K.update_add(self.tp, tp)
-        self.add_update(tp_update)
-
-        return tp + current_tp
-
-
-class TrueNegative(BaseLayer):
-    """Create a metric for model's true negatives amount calculation.
-
-    A true negative is an outcome where the model correctly predicts the
-    negative class.
-    """
-
-    def __init__(self, name="true_negative", **kwargs):
-        super(TrueNegative, self).__init__(name=name, **kwargs)
-
-    def reset_states(self):
-        """Reset the state of the metric."""
-        K.set_value(self.tn, 0)
-
-    def __call__(self, y_true, y_pred):
-        if self.epsilon is None:
-            self.init_tensors("tn")
-
-        y_true, y_pred = self.cast(y_true, y_pred)
-
-        neg_y_true = 1 - y_true
-        neg_y_pred = 1 - y_pred
-
-        tn = K.sum(neg_y_true * neg_y_pred)
-        current_tn = self.tn * 1
-
-        tn_update = K.update_add(self.tn, tn)
-        self.add_update(tn_update, inputs=[y_true, y_pred])
-
-        return tn + current_tn
-
-
-class FalseNegative(BaseLayer):
-    """Create a metric for model's false negatives amount calculation.
-
-    A false negative is an outcome where the model incorrectly predicts the
-    negative class.
-    """
-
-    def __init__(self, name="false_negative", **kwargs):
-        super(FalseNegative, self).__init__(name=name, **kwargs)
-
-    def reset_states(self):
-        """Reset the state of the metric."""
-        K.set_value(self.fn, 0)
-
-    def __call__(self, y_true, y_pred):
-        if self.epsilon is None:
-            self.init_tensors("fn")
-
-        y_true, y_pred = self.cast(y_true, y_pred)
-        neg_y_pred = 1 - y_pred
-
-        fn = K.sum(y_true * neg_y_pred)
-        current_fn = self.fn * 1
-
-        fn_update = K.update_add(self.fn, fn)
-        self.add_update(fn_update)
-
-        return fn + current_fn
-
-
-class FalsePositive(BaseLayer):
-    """Create a metric for model's false positive amount calculation.
-
-    A false positive is an outcome where the model incorrectly predicts the
-    positive class.
-    """
-
-    def __init__(self, name="false_positive", **kwargs):
-        super(FalsePositive, self).__init__(name=name, **kwargs)
-
-    def reset_states(self):
-        """Reset the state of the metric."""
-        K.set_value(self.fp, 0)
-
-    def __call__(self, y_true, y_pred):
-        if self.epsilon is None:
-            self.init_tensors("fp")
-
-        y_true, y_pred = self.cast(y_true, y_pred)
-        neg_y_true = 1 - y_true
-
-        fp = K.sum(neg_y_true * y_pred)
-        current_fp = self.fp * 1
-
-        fp_update = K.update_add(self.fp, fp)
-        self.add_update(fp_update)
-
-        return fp + current_fp
-
-
-class Recall(BaseLayer):
-    """Create a metric for model's recall calculation.
-
-    Recall measures proportion of actual positives that was identified
-    correctly.
-    """
-
-    def __init__(self, name="recall", **kwargs):
-        super(Recall, self).__init__(name=name, **kwargs)
-
-        self.tp = TruePositive(**kwargs)
-        self.fn = FalseNegative(**kwargs)
-
-    def reset_states(self):
-        """Reset the state of the metrics."""
-        self.tp.reset_states()
-        self.fn.reset_states()
-
-    def __call__(self, y_true, y_pred):
-        if self.epsilon is None:
-            self.init_tensors()
-
-        tp = self.tp(y_true, y_pred)
-        fn = self.fn(y_true, y_pred)
-
-        self.add_update(self.tp.updates)
-        self.add_update(self.fn.updates)
-
-        tp = K.cast(tp, self.epsilon.dtype)
-        fn = K.cast(fn, self.epsilon.dtype)
-
-        return truediv(tp, tp + fn + self.epsilon)
-
-
-class Precision(BaseLayer):
-    """Create  a metric for model's precision calculation.
-
-    Precision measures proportion of positives identifications that were
-    actually correct.
-    """
-
-    def __init__(self, name="precision", **kwargs):
-        super(Precision, self).__init__(name=name, **kwargs)
-
-        self.tp = TruePositive(**kwargs)
-        self.fp = FalsePositive(**kwargs)
-
-    def reset_states(self):
-        """Reset the state of the metrics."""
-        self.tp.reset_states()
-        self.fp.reset_states()
-
-    def __call__(self, y_true, y_pred):
-        if self.epsilon is None:
-            self.init_tensors()
-
-        tp = self.tp(y_true, y_pred)
-        fp = self.fp(y_true, y_pred)
-
-        self.add_update(self.tp.updates)
-        self.add_update(self.fp.updates)
-
-        tp = K.cast(tp, self.epsilon.dtype)
-        fp = K.cast(fp, self.epsilon.dtype)
-
-        return truediv(tp, tp + fp + self.epsilon)
-
-
-class F1_Score(BaseLayer):
-    """Create a metric for the model's F1 score calculation.
-
-    The F1 score is the harmonic mean of precision and recall.
-    """
-
-    def __init__(self, name="f1_score", **kwargs):
-        super(F1_Score, self).__init__(name=name, **kwargs)
-
-        self.precision = Precision(**kwargs)
-        self.recall = Recall(**kwargs)
-
-    def reset_states(self):
-        """Reset the state of the metrics."""
-        self.precision.reset_states()
-        self.recall.reset_states()
-
-    def __call__(self, y_true, y_pred):
-        if self.epsilon is None:
-            self.init_tensors()
-
-        pr = self.precision(y_true, y_pred)
-        rec = self.recall(y_true, y_pred)
-
-        self.add_update(self.precision.updates)
-        self.add_update(self.recall.updates)
-
-        return 2 * truediv(pr * rec, pr + rec + K.epsilon())
-
-
-class Average_Recall(BaseLayer):
-    """Create a metric for the average recall calculation.
-    """
-
-    def __init__(self, name="average_recall", labels=1, **kwargs):
-        super(Average_Recall, self).__init__(name=name, **kwargs)
-
-        self.labels = labels
-
-    def init_tensors(self, name=None):
-        self.epsilon = K.constant(K.epsilon(), dtype="float64")
-        if name and not hasattr(self, name):
-            setattr(self, name, K.zeros(self.labels, dtype="int32"))
-
-    def reset_states(self):
-        K.set_value(self.tp, [0]*self.labels)
-        K.set_value(self.fn, [0]*self.labels)
-
-    def __call__(self, y_true, y_pred):
-        if self.epsilon is None:
-            self.init_tensors("tp")
-            self.init_tensors("fn")
-
-        y_true = K.cast(K.round(y_true), "int32")
-        y_pred = K.cast(K.round(y_pred), "int32")
-        neg_y_pred = 1 - y_pred
-
-        tp = K.sum(K.transpose(y_true * y_pred), axis=-1)
-        fn = K.sum(K.transpose(y_true * neg_y_pred), axis=-1)
-
-        current_tp = K.cast(self.tp + tp, self.epsilon.dtype)
-        current_fn = K.cast(self.fn + fn, self.epsilon.dtype)
-
-        tp_update = K.update_add(self.tp, tp)
-        fn_update = K.update_add(self.fn, fn)
-
-        self.add_update(tp_update, inputs=[y_true, y_pred])
-        self.add_update(fn_update, inputs=[y_true, y_pred])
-
-        return K.mean(truediv(current_tp, current_tp + current_fn + self.epsilon))
+    def reset_state(self):
+        self.metric.reset_state()
