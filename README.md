@@ -16,7 +16,7 @@ Visit: https://challenge.zalo.ai/portal/question-answering
 
 ## Approaches 
 
-I used pretrained bert (bert-base-multilingual-cased) for fine-tuning
+I used pretrained bert (`bert-base-multilingual-cased`) for fine-tuning
 
 ## Hyperparameter
 num_train_epochs = 5.0
