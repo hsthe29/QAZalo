@@ -18,8 +18,7 @@ Visit: https://challenge.zalo.ai/portal/question-answering
 
 I used pretrained bert (bert-base-multilingual-cased) for fine-tuning
 
-## Final Solution 
-
+## Hyperparameter
 num_train_epochs = 5.0
 
 max_seq_length = 512 
@@ -29,20 +28,24 @@ train_batch_size = 16
 learning_rate = 2e-5
 
 # Run
+Run the project using `flags`. For more details on the flags defined, read the `main.py` file or run this command: `python main.py -h`
 
-Firstly, edit the necessary arguments in the .sh files
-
-And then:
-
-## Train 
+### Train 
 Please download the init checkpoint at [here]() and put into the folder checkpoint.
 
 Run command ``` sh train.sh ```
 
 
-## Predict
+### Predict
 If you want to only predict, please download the checkpoint of trained model at [here]()
 
 Run command: ``` sh predict.sh ```. 
+
+## Result:
+Training logs are store at `logs/tensorboard`. 
+
+Usage: ```$ tensorboard --logdir=logs/tensorboard```  for visualization
+
+With validation set (`data/train/val.csv`), this model reach 83.6% of F1 score
 
 
