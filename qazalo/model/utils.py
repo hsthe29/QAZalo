@@ -10,11 +10,12 @@ def load_tokenizer():
     return BertTokenizer.from_pretrained("bert-base-multilingual-cased")
 
 
-def build_classifier(num_classes, use_pooler, dropout_rate, hidden_units=768):
+def build_classifier(num_outputs, use_pooler, dropout_rate, hidden_units=768, to_logits=True):
+    activation = None if to_logits else "sigmoid"
     if use_pooler:
         return tf.keras.Sequential([
             tf.keras.Input(shape=hidden_units),
-            tf.keras.layers.Dense(num_classes)
+            tf.keras.layers.Dense(num_outputs, activation=activation)
         ])
     else:
         if hidden_units is None:
@@ -23,11 +24,11 @@ def build_classifier(num_classes, use_pooler, dropout_rate, hidden_units=768):
             tf.keras.Input(shape=(hidden_units*4,)),
             tf.keras.layers.Dense(hidden_units, activation="relu"),
             tf.keras.layers.Dropout(dropout_rate),
-            tf.keras.layers.Dense(num_classes)
+            tf.keras.layers.Dense(num_outputs, activation=activation)
         ])
 
 
 def retrieve(name):
-    config_path = "config/" + name + ".json"
-    weights_path = "checkpoint/" + name
+    config_path = f"config/{name}.json"
+    weights_path = f"checkpoint/{name}/{name}"
     return config_path, weights_path
