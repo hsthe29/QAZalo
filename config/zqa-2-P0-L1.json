@@ -1,6 +1,6 @@
 {
     "num_classes": 2,
-    "use_pooler": true,
+    "use_pooler": false,
     "to_logits": true,
     "dropout_rate": 0.1,
     "hidden_units": 768,
