@@ -1,7 +1,7 @@
-from dataset import make_dataset
-from src.model import BertClassifier
-from src.utils import train, evaluate, predict
-from src.parser import Parser
+from qazalo.dataset import make_dataset
+from qazalo.utils import train, evaluate, predict
+from qazalo.parser import Parser
+import tensorflow as tf
 
 parser = Parser()
 parser.DEFINE_integer(
@@ -33,6 +33,16 @@ parser.DEFINE_bool(
     "use-pooler", False,
     "Whether to use pooler output for classification"
 )
+parser.DEFINE_string(
+    "monitor", "val_f1",
+    "Monitor for checkpoint"
+)
+parser.DEFINE_integer(
+    "max-seq-length", 512
+)
+parser.DEFINE_integer(
+    "max-query-length", 64
+)
 parser.DEFINE_bool(
     "from-scratch", True,
     "Whether to train model from scratch"
@@ -40,6 +50,15 @@ parser.DEFINE_bool(
 parser.DEFINE_string(
     "pretrained-name", None,
     "Saved model for loading"
+)
+parser.DEFINE_string(
+    "update-freq", "epoch"
+)
+parser.DEFINE_bool(
+    "use-tpu", False
+)
+parser.DEFINE_string(
+    "tpu-name", ""
 )
 parser.DEFINE_string("log-dir", "logs/")
 parser.DEFINE_string("save-dir", "checkpoint/")
@@ -56,48 +75,70 @@ parser.DEFINE_string(
     "Test data directory"
 )
 parser.DEFINE_string(
-    "output-dir", None,
-    "Output directory to store prediction result of test data"
+    "output", None,
+    "Output file to store prediction result of test data"
 )
 
-flags = parser.parse()
+
+def detect_tpu():
+    try:
+        resolver = tf.distribute.cluster_resolver.TPUClusterResolver(tpu=flags.tpu_name)
+        tf.config.experimental_connect_to_cluster(resolver)
+        # This is the TPU initialization code that has to be at the beginning.
+        tf.tpu.experimental.initialize_tpu_system(resolver)
+        print("All TPUs: ", tf.config.list_logical_devices('TPU'))
+
+    except ValueError:
+        resolver = None
+        print('No TPU detected')
+
+    return resolver
+
 
 if __name__ == "__main__":
+    flags = parser.parse()
+    strategy = None
+    # use tpu
+    if flags.use_tpu:
+        tpu_resolver = detect_tpu()
+        if tpu_resolver:
+            strategy = tf.distribute.TPUStrategy(tpu_resolver)
 
     if flags.mode == "train":
-        if flags.from_scratch:
-            model = BertClassifier(num_classes=flags.num_classes, use_pooler=flags.use_pooler)
-        else:
-            pretrained_name = f"zqa-{flags.num_classes}-P{int(flags.use_pooler)}-L{int(flags.from_logits)}"
-            model = BertClassifier.from_pretrained(pretrained_name)
-
         if flags.train_input is None:
-            raise ValueError("There is no data input")
+            raise ValueError("There is no train input")
         train_ds = make_dataset(flags.train_input,
+                                max_seq_length=flags.max_seq_length,
+                                max_query_length=flags.max_query_length,
                                 batch_size=flags.batch_size)
         val_ds = None
         if flags.validation_input:
             val_ds = make_dataset(flags.validation_input,
+                                  max_seq_length=flags.max_seq_length,
+                                  max_query_length=flags.max_query_length,
                                   batch_size=flags.batch_size)
-        train(model, (train_ds, val_ds), flags=flags)
+        train((train_ds, val_ds), flags, strategy=strategy)
 
     elif flags.mode == "eval":
-        model = BertClassifier.from_pretrained(flags.pretrained_name)
-        if flags.test_input is None:
-            raise ValueError("There is no test input")
-        test_dataset = make_dataset(flags.test_input,
-                                    batch_size=flags.batch_size)
+        if flags.validation_input is None:
+            raise ValueError("There is no validation input")
+        val_ds = make_dataset(flags.validation_input,
+                              max_seq_length=flags.max_seq_length,
+                              max_query_length=flags.max_query_length,
+                              batch_size=flags.batch_size,
+                              mode="eval")
 
-        evaluate(model, test_dataset, flags=flags)
+        evaluate(val_ds, flags, strategy=strategy)
 
     elif flags.mode == "test":
-        model = BertClassifier.from_pretrained(flags.pretrained_name)
         if flags.test_input is None:
             raise ValueError("There is no test input")
-        test_dataset = make_dataset(flags.test_input,
-                                    batch_size=flags.batch_size,
-                                    training=False)
+        test_ds, test_id = make_dataset(flags.test_input,
+                                        batch_size=flags.batch_size,
+                                        max_seq_length=flags.max_seq_length,
+                                        max_query_length=flags.max_query_length,
+                                        mode="test")
 
-        predict(model, test_dataset, flags=flags)
+        predict(test_ds, test_id, flags=flags, strategy=strategy)
     else:
         raise ValueError(f"Mode: {flags.mode} not in supported modes!")
