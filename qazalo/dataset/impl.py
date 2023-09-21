@@ -1,7 +1,6 @@
 import tensorflow as tf
-
-from model import load_tokenizer
-
+from qazalo.model import load_tokenizer
+import pandas as pd
 
 class DataExample(object):
     """
@@ -48,51 +47,70 @@ class InputFeatures(object):
         self.is_has_answer = is_has_answer
 
 
-def read_data_from_file(input_path, label=True):
+def read_data_from_file(input_path, test=False):
     with open(input_path, "r", encoding='utf-8') as rf:
+        all_lines = rf.readlines()
+
+    if test:
+        # column_names = ["TestID", "Order", "Question", "Doc"]
         questions = []
         docs = []
-        labels = None
-        if label:
-            labels = []
+        test_id = []
 
-        for e_line in rf.readlines():
-            e_line = e_line.replace("\n", "")
-            arr_e_line = e_line.split("\t")
+        for line in all_lines:
+            parts = line.split("\t")
+            questions.append(parts[2].strip())
+            docs.append(parts[3].strip())
+            test_id.append(parts[0].strip() + "\t" + parts[1].strip())
 
-            if label:
-                if arr_e_line[2] == "true":
-                    labels.append(1)
-                else:
-                    labels.append(0)
+        data = {
+            "test": True,
+            "test_id": test_id,
+            "question": questions,
+            "doc": docs
+        }
+    else:
+        # column_names = ["Question", "Doc", "HasAnswer"]
+        questions = []
+        docs = []
+        has_answer = []
 
-            question = arr_e_line[0].strip()
-            doc = arr_e_line[1].strip()
-            questions.append(question)
-            docs.append(doc)
+        for line in all_lines:
+            parts = line.split("\t")
+            questions.append(parts[0].strip())
+            docs.append(parts[1].strip())
+            has_answer.append(1 if parts[2].strip() == "true" else 0)
 
-    examples = {
-        "size": len(questions),
-        "questions": questions,
-        "docs": docs,
-        "labels": labels
-    }
+        data = {
+            "test": False,
+            "question": questions,
+            "doc": docs,
+            "label": has_answer
+        }
 
-    return examples
+    return data
 
 
 def apply_processing(data, tokenizer, max_seq_length, max_query_length):
     """Loads a data file into a list of `InputBatch`s."""
-    questions = data["questions"]
-    docs = data["docs"]
+    questions = data["question"]
+    docs = data["doc"]
     indices = range(len(questions))
     max_doc_length = max_seq_length - max_query_length - 3
-    encoded_data = {
-        'input_ids': [],
-        'token_type_ids': [],
-        'attention_mask': [],
-        'labels': data['labels']
-    }
+    if data['test']:
+        encoded_data = {
+            "test_id": data["test_id"],
+            "input_ids": [],
+            "token_type_ids": [],
+            "attention_mask": []
+        }
+    else:
+        encoded_data = {
+            "input_ids": [],
+            "token_type_ids": [],
+            "attention_mask": [],
+            "label": data["label"]
+        }
     for i in indices:
         query_tokens = tokenizer.tokenize(questions[i])
         if len(query_tokens) > max_query_length:
@@ -114,23 +132,24 @@ def apply_processing(data, tokenizer, max_seq_length, max_query_length):
 
 
 def make_dataset(path_input_data,
-                 max_seq_length=256,
-                 max_query_length=64,
-                 batch_size=16,
-                 training=True):
+                 max_seq_length,
+                 max_query_length,
+                 batch_size,
+                 mode="train"):
     tokenizer = load_tokenizer()
-    raw_data = read_data_from_file(path_input_data)
 
-    encoded_data = apply_processing(raw_data, tokenizer, max_seq_length, max_query_length)
-    buffer_size = raw_data["size"]
-    input_ids = tf.ragged.constant(encoded_data['input_ids'])
-    token_type_ids = tf.ragged.constant(encoded_data['token_type_ids'])
-    attention_mask = tf.ragged.constant(encoded_data['attention_mask'])
-    labels = encoded_data['labels']
+    if mode == "train" or mode == "eval":
+        raw_data = read_data_from_file(path_input_data, test=False)
 
-    if training:
+        encoded_data = apply_processing(raw_data, tokenizer, max_seq_length, max_query_length)
+
+        input_ids = tf.ragged.constant(encoded_data['input_ids'])
+        token_type_ids = tf.ragged.constant(encoded_data['token_type_ids'])
+        attention_mask = tf.ragged.constant(encoded_data['attention_mask'])
+        label = encoded_data['label']
+        buffer_size = len(label)
         dataset = (tf.data.Dataset
-                   .from_tensor_slices((input_ids, token_type_ids, attention_mask, labels))
+                   .from_tensor_slices((input_ids, token_type_ids, attention_mask, label))
                    .shuffle(buffer_size=buffer_size)
                    .batch(batch_size=batch_size)
                    .map(lambda x, y, z, t: (
@@ -140,7 +159,17 @@ def make_dataset(path_input_data,
                         "attention_mask": z.to_tensor()
                     }, tf.cast(t, dtype=tf.float32)), num_parallel_calls=tf.data.AUTOTUNE)
                    .prefetch(buffer_size=tf.data.AUTOTUNE))
-    else:
+        return dataset
+    elif mode == "test":
+        raw_data = read_data_from_file(path_input_data, test=True)
+
+        encoded_data = apply_processing(raw_data, tokenizer, max_seq_length, max_query_length)
+
+        input_ids = tf.ragged.constant(encoded_data['input_ids'])
+        token_type_ids = tf.ragged.constant(encoded_data['token_type_ids'])
+        attention_mask = tf.ragged.constant(encoded_data['attention_mask'])
+        test_id = encoded_data['test_id']
+
         dataset = (tf.data.Dataset
                    .from_tensor_slices((input_ids, token_type_ids, attention_mask))
                    .batch(batch_size=batch_size)
@@ -151,5 +180,8 @@ def make_dataset(path_input_data,
                         "attention_mask": z.to_tensor()
                     }), num_parallel_calls=tf.data.AUTOTUNE)
                    .prefetch(buffer_size=tf.data.AUTOTUNE))
+        return dataset, test_id
 
-    return dataset
+    else:
+        raise ValueError(f"Mode: {mode} not in supported list: ['train', 'eval', 'test']")
+
