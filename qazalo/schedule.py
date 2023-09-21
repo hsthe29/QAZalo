@@ -1,8 +1,7 @@
-from abc import ABC
 import tensorflow as tf
 
 
-class WarmupLinearSchedule(tf.keras.optimizers.schedules.LearningRateSchedule, ABC):
+class WarmupLinearSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, init_lr, num_train_steps, num_warmup_steps):
         super(WarmupLinearSchedule, self).__init__()
         self.init_lr = init_lr

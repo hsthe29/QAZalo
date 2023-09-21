@@ -74,6 +74,7 @@ class Parser:
             else:
                 raise ValueError("Invalid flag prefix!")
 
-    def parse(self):
-        self.__match()
+    def parse(self, fetch=True):
+        if fetch:
+            self.__match()
         return FLAGS(self.__vars)

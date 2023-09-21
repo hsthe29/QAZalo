@@ -5,7 +5,7 @@ import json
 
 
 class BertClassifier(keras.Model):
-    def __init__(self, num_classes, use_pooler=False, dropout_rate=0.1, hidden_units=768,
+    def __init__(self, num_classes, use_pooler=False, to_logits=True, dropout_rate=0.1, hidden_units=768,
                  class_weights=None):
         super(BertClassifier, self).__init__()
         self.num_classes = num_classes
@@ -13,7 +13,7 @@ class BertClassifier(keras.Model):
         self.backbone = load_pretrained_bert()
         self.use_pooler = use_pooler
         num_outputs = 1 if num_classes == 2 else num_classes
-        self.classifier = build_classifier(num_outputs, use_pooler, dropout_rate, hidden_units=hidden_units)
+        self.classifier = build_classifier(num_outputs, use_pooler, dropout_rate, hidden_units=hidden_units, to_logits=to_logits)
 
         self.class_weights = class_weights
 

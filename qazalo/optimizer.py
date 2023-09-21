@@ -1,5 +1,5 @@
 import tensorflow as tf
-from schedule import WarmupLinearSchedule
+from .schedule import WarmupLinearSchedule
 
 
 def create_optimizer(init_lr,
