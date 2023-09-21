@@ -42,9 +42,9 @@ If you want to only predict, please download the checkpoint of trained model at 
 Run command: ``` sh predict.sh ```. 
 
 ## Result:
-Training logs are store at `logs/tensorboard`. 
+Training logs are store at `logs/`. 
 
-Usage: ```$ tensorboard --logdir=logs/tensorboard```  for visualization
+For visualizing: ```$ tensorboard --logdir=logs/tensorboard```
 
 With validation set (`data/train/val.csv`), this model reach 83.6% of F1 score
 
