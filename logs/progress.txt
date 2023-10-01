@@ -1,0 +1,23 @@
+2125/2125 [==============================] - ETA: 0s - loss: 0.4270 - accuracy: 0.8056 - f1: 0.6679 - precision: 0.7280 - recall: 0.6169
+Epoch 1: val_f1 improved from -inf to 0.77378, saving model to checkpoint/zqa-2-P0-L1
+2125/2125 [==============================] - 931s 414ms/step - loss: 0.4270 - accuracy: 0.8056 - f1: 0.6679 - precision: 0.7280 - recall: 0.6169 - val_loss: 0.3563 - val_accuracy: 0.8420 - val_f1: 0.7738 - val_precision: 0.7082 - val_recall: 0.8527
+Epoch 2/6
+2125/2125 [==============================] - ETA: 0s - loss: 0.2660 - accuracy: 0.8890 - f1: 0.8219 - precision: 0.8357 - recall: 0.8085
+Epoch 2: val_f1 improved from 0.77378 to 0.81392, saving model to checkpoint/zqa-2-P0-L1
+2125/2125 [==============================] - 791s 372ms/step - loss: 0.2660 - accuracy: 0.8890 - f1: 0.8219 - precision: 0.8357 - recall: 0.8085 - val_loss: 0.2971 - val_accuracy: 0.8896 - val_f1: 0.8139 - val_precision: 0.8734 - val_recall: 0.7620
+Epoch 3/6
+2125/2125 [==============================] - ETA: 0s - loss: 0.1382 - accuracy: 0.9475 - f1: 0.9170 - precision: 0.9179 - recall: 0.9161
+Epoch 3: val_f1 improved from 0.81392 to 0.83611, saving model to checkpoint/zqa-2-P0-L1
+2125/2125 [==============================] - 797s 375ms/step - loss: 0.1382 - accuracy: 0.9475 - f1: 0.9170 - precision: 0.9179 - recall: 0.9161 - val_loss: 0.3387 - val_accuracy: 0.8941 - val_f1: 0.8361 - val_precision: 0.8202 - val_recall: 0.8527
+Epoch 4/6
+2125/2125 [==============================] - ETA: 0s - loss: 0.0595 - accuracy: 0.9780 - f1: 0.9653 - precision: 0.9636 - recall: 0.9671
+Epoch 4: val_f1 did not improve from 0.83611
+2125/2125 [==============================] - 785s 369ms/step - loss: 0.0595 - accuracy: 0.9780 - f1: 0.9653 - precision: 0.9636 - recall: 0.9671 - val_loss: 0.4442 - val_accuracy: 0.8968 - val_f1: 0.8311 - val_precision: 0.8628 - val_recall: 0.8017
+Epoch 5/6
+2125/2125 [==============================] - ETA: 0s - loss: 0.0316 - accuracy: 0.9895 - f1: 0.9835 - precision: 0.9831 - recall: 0.9838
+Epoch 5: val_f1 did not improve from 0.83611
+2125/2125 [==============================] - 785s 369ms/step - loss: 0.0316 - accuracy: 0.9895 - f1: 0.9835 - precision: 0.9831 - recall: 0.9838 - val_loss: 0.4894 - val_accuracy: 0.9004 - val_f1: 0.8351 - val_precision: 0.8781 - val_recall: 0.7960
+Epoch 6/6
+2125/2125 [==============================] - ETA: 0s - loss: 0.0107 - accuracy: 0.9966 - f1: 0.9947 - precision: 0.9948 - recall: 0.9946
+Epoch 6: val_f1 did not improve from 0.83611
+2125/2125 [==============================] - 790s 372ms/step - loss: 0.0107 - accuracy: 0.9966 - f1: 0.9947 - precision: 0.9948 - recall: 0.9946 - val_loss: 0.5525 - val_accuracy: 0.8950 - val_f1: 0.8331 - val_precision: 0.8391 - val_recall: 0.8272

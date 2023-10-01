@@ -1,50 +1,4 @@
 import tensorflow as tf
-from qazalo.model import load_tokenizer
-import pandas as pd
-
-class DataExample(object):
-    """
-    A single training/test example for the Squad dataset.
-    For examples without an answer, the start and end position are -1.
-    """
-
-    def __init__(self,
-                 question,
-                 doc,
-                 is_has_answer=None):
-        self.question = question
-        self.doc = doc
-        self.is_has_answer = is_has_answer
-
-    def __str__(self):
-        return self.__repr__()
-
-    def __repr__(self):
-        s = "{"
-        s += f"question: {self.question} | "
-        s += f"doc: {self.doc} | "
-        s += f", is_has_answer: {self.is_has_answer}" + "}"
-        return s
-
-
-class InputFeatures(object):
-    """A single set of features of data."""
-
-    def __init__(self,
-                 example_index,
-                 tokens,
-                 token_to_orig_map,
-                 input_ids,
-                 input_mask,
-                 segment_ids,
-                 is_has_answer=None):
-        self.example_index = example_index
-        self.tokens = tokens
-        self.token_to_orig_map = token_to_orig_map
-        self.input_ids = input_ids
-        self.input_mask = input_mask
-        self.segment_ids = segment_ids
-        self.is_has_answer = is_has_answer
 
 
 def read_data_from_file(input_path, test=False):
@@ -96,7 +50,7 @@ def apply_processing(data, tokenizer, max_seq_length, max_query_length):
     questions = data["question"]
     docs = data["doc"]
     indices = range(len(questions))
-    max_doc_length = max_seq_length - max_query_length - 3
+    max_able_length = max_seq_length - 3
     if data['test']:
         encoded_data = {
             "test_id": data["test_id"],
@@ -117,8 +71,8 @@ def apply_processing(data, tokenizer, max_seq_length, max_query_length):
             query_tokens = query_tokens[:max_query_length]
 
         doc_tokens = tokenizer.tokenize(docs[i])
-        if len(doc_tokens) > max_doc_length:
-            doc_tokens = doc_tokens[:max_doc_length]
+        if len(doc_tokens) + len(query_tokens) > max_able_length:
+            doc_tokens = doc_tokens[:max_able_length - len(query_tokens)]
 
         query = tokenizer.convert_tokens_to_string(query_tokens)
         doc = tokenizer.convert_tokens_to_string(doc_tokens)
@@ -132,11 +86,11 @@ def apply_processing(data, tokenizer, max_seq_length, max_query_length):
 
 
 def make_dataset(path_input_data,
-                 max_seq_length,
-                 max_query_length,
-                 batch_size,
+                 tokenizer,
+                 max_seq_length=512,
+                 max_query_length=64,
+                 batch_size=16,
                  mode="train"):
-    tokenizer = load_tokenizer()
 
     if mode == "train" or mode == "eval":
         raw_data = read_data_from_file(path_input_data, test=False)

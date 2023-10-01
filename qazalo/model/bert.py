@@ -43,5 +43,5 @@ class BertClassifier(keras.Model):
         with open(config_path, "r") as f:
             config = json.load(f)
         obj = cls(**config)
-        obj.load_weights(weights_path)
+        obj.load_weights(weights_path).expect_partial()
         return obj

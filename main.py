@@ -1,4 +1,5 @@
 from qazalo.dataset import make_dataset
+from qazalo.model import load_tokenizer
 from qazalo.utils import train, evaluate, predict
 from qazalo.parser import Parser
 import tensorflow as tf
@@ -41,7 +42,7 @@ parser.DEFINE_integer(
     "max-seq-length", 512
 )
 parser.DEFINE_integer(
-    "max-query-length", 64
+    "max-question-length", 64
 )
 parser.DEFINE_bool(
     "from-scratch", True,
@@ -104,18 +105,21 @@ if __name__ == "__main__":
         if tpu_resolver:
             strategy = tf.distribute.TPUStrategy(tpu_resolver)
 
+    tokenizer = load_tokenizer()
     if flags.mode == "train":
         if flags.train_input is None:
             raise ValueError("There is no train input")
         train_ds = make_dataset(flags.train_input,
+                                tokenizer,
                                 max_seq_length=flags.max_seq_length,
-                                max_query_length=flags.max_query_length,
+                                max_query_length=flags.max_question_length,
                                 batch_size=flags.batch_size)
         val_ds = None
         if flags.validation_input:
             val_ds = make_dataset(flags.validation_input,
+                                  tokenizer,
                                   max_seq_length=flags.max_seq_length,
-                                  max_query_length=flags.max_query_length,
+                                  max_query_length=flags.max_question_length,
                                   batch_size=flags.batch_size)
         train((train_ds, val_ds), flags, strategy=strategy)
 
@@ -124,7 +128,7 @@ if __name__ == "__main__":
             raise ValueError("There is no validation input")
         val_ds = make_dataset(flags.validation_input,
                               max_seq_length=flags.max_seq_length,
-                              max_query_length=flags.max_query_length,
+                              max_query_length=flags.max_question_length,
                               batch_size=flags.batch_size,
                               mode="eval")
 
@@ -136,7 +140,7 @@ if __name__ == "__main__":
         test_ds, test_id = make_dataset(flags.test_input,
                                         batch_size=flags.batch_size,
                                         max_seq_length=flags.max_seq_length,
-                                        max_query_length=flags.max_query_length,
+                                        max_query_length=flags.max_question_length,
                                         mode="test")
 
         predict(test_ds, test_id, flags=flags, strategy=strategy)
